@@ -1,2 +1,1 @@
-# SmilePass
-MIE Dentistry Project
+# SmilePass Dentistry Project
