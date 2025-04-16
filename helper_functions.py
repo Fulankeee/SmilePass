@@ -4,7 +4,6 @@ import numpy as np
 import re
 
 # Helper function from Ruiwu's script for data preprocessing, slicing and aggragating.
-
 def drop_high_nan_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     Drop columns with more than 50% missing values (NaN or None) from a DataFrame.
