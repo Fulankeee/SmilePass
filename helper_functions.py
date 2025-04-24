@@ -80,6 +80,31 @@ def days_cal(df, date_late, date_early, new_col_name):
     # Delete original columns.
     df = df.drop(columns=[date_late, date_early])
     return df
+
+def days_cal_v2(df, date_late, date_early, new_col_name):
+    """
+    Calculate how many days are there in the difference between column date_late and date_early.
+
+    Args:
+        df (pandas.DataFrame): Input DataFrame
+        date_late (str): The name of the column containing later dates
+        date_early (str): The name of the column containing earlier dates
+        new_col_name (str): New column containing the calculation result
+
+    Return:
+        pandas.DataFrame: New DataFrame after processing，including new_col_name，but excluding date_late and date_early.
+    """
+    # Make sure that date_late and date_early are in datetime format.
+    df[date_late] = pd.to_datetime(df[date_late])
+    df[date_early] = pd.to_datetime(df[date_early])
+    
+    # Calculate how many days are there in the difference between column date_late and date_early.
+    df[new_col_name] = ((df[date_late] - df[date_early]).dt.days)*1.00/365.00
+    
+    # Delete original columns.
+    # df = df.drop(columns=[date_late, date_early])
+    return df
+
 def one_hot_encode_procedure_and_treatment(df):
     """
     Perform one-hot encoding on both the "procedure_code_y" and "treatment_category" columns of the input DataFrame.
