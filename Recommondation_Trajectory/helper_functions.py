@@ -274,3 +274,211 @@ def merge_columns_with_priority(df: pd.DataFrame, col1: str, col2: str, defined_
     df[new_col_name] = new_col
 
     return df
+
+
+def classify_patient(group):
+    procedure_dates = group.sort_values('procedure_date')['procedure_date']
+
+    # Calculate total treatment span in years
+    span_years = (group['last_visit'].iloc[0] - group['first_visit'].iloc[0]).days / 365.0
+
+    # Calculate max gap between consecutive visits in years
+    gaps = procedure_dates.diff().dropna().dt.days / 365.0
+    max_gap = gaps.max() if not gaps.empty else 0
+
+    # Classification rules
+    if max_gap <= 2:
+        if span_years >= 3:
+            return 'V1'  # Consistent long history
+        else:
+            return 'V2'  # Consistent short history
+    elif max_gap > 2 and span_years >= 7:
+        return 'V3'  # Inconsistent but long history
+    else:
+        return 'V4'  # Inconsistent and short history (everything else)
+    
+def cluster_patients_kmeans(df_svd, n_clusters=6):
+    # Select only the SVD columns
+    svd_cols = [col for col in df_svd.columns if col.startswith("SVD_")]
+    X = df_svd[svd_cols]
+
+    # Standardize the data
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # Apply KMeans clustering
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    cluster_labels = kmeans.fit_predict(X_scaled)
+
+    # Add cluster labels to the DataFrame
+    df_svd['Kmeans_cluster'] = cluster_labels
+
+    return df_svd, kmeans, scaler
+
+
+# AgglomerativeClustering
+def cluster_patients_agglomerative(df_svd, n_clusters=6):
+    svd_cols = [col for col in df_svd.columns if col.startswith("SVD_")]
+    X = df_svd[svd_cols]
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    agglo = AgglomerativeClustering(n_clusters=n_clusters)
+
+    df_svd['Agg_cluster'] = agglo.fit_predict(X_scaled)
+
+    return df_svd, agglo, scaler
+
+# GMM
+def cluster_patients_gmm(df_svd, n_clusters=6):
+    svd_cols = [col for col in df_svd.columns if col.startswith("SVD_")]
+    X = df_svd[svd_cols]
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    gmm = GaussianMixture(n_components=n_clusters, random_state=42)
+    df_svd['gmm_cluster'] = gmm.fit_predict(X_scaled)
+
+    return df_svd, gmm, scaler
+
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans, AgglomerativeClustering
+from sklearn.mixture import GaussianMixture
+from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import StandardScaler
+
+# KMeans
+def grid_search_kmeans(df_svd, svd_prefix='SVD_', k_range=range(4, 11)):
+    svd_cols = [col for col in df_svd.columns if col.startswith(svd_prefix)]
+    X = StandardScaler().fit_transform(df_svd[svd_cols].values)
+
+    inertias, silhouettes = [], []
+
+    for k in k_range:
+        kmeans = KMeans(n_clusters=k, random_state=42)
+        labels = kmeans.fit_predict(X)
+        inertias.append(kmeans.inertia_)
+        silhouettes.append(silhouette_score(X, labels))
+
+    best_k = k_range[silhouettes.index(max(silhouettes))]
+    best_model = KMeans(n_clusters=best_k, random_state=42).fit(X)
+
+    # Plot
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(k_range, inertias, marker='o')
+    plt.title('KMeans: Inertia vs k')
+    plt.xlabel('k')
+    plt.ylabel('Inertia')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(k_range, silhouettes, marker='o')
+    plt.title('KMeans: Silhouette Score vs k')
+    plt.xlabel('k')
+    plt.ylabel('Silhouette Score')
+    plt.tight_layout()
+    plt.show()
+
+    return best_model, best_k, silhouettes
+
+# GMM
+def grid_search_gmm(df_svd, svd_prefix='SVD_', k_range=range(4, 11)):
+    svd_cols = [col for col in df_svd.columns if col.startswith(svd_prefix)]
+    X = StandardScaler().fit_transform(df_svd[svd_cols].values)
+
+    inertias, silhouettes = [], []
+
+    for k in k_range:
+        gmm = GaussianMixture(n_components=k, covariance_type='full', random_state=42)
+        labels = gmm.fit_predict(X)
+        score = silhouette_score(X, labels) if len(set(labels)) > 1 else -1
+        silhouettes.append(score)
+        
+        # Pseudo-inertia (negative log-likelihood * n_samples)
+        inertia_like = -gmm.score(X) * len(X)
+        inertias.append(inertia_like)
+
+    best_k = k_range[silhouettes.index(max(silhouettes))]
+    best_model = GaussianMixture(n_components=best_k, covariance_type='full', random_state=42).fit(X)
+
+    # Plot
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(k_range, inertias, marker='o')
+    plt.title('GMM: Inertia vs k')
+    plt.xlabel('k')
+    plt.ylabel('Inertia')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(k_range, silhouettes, marker='o')
+    plt.title('GMM: Silhouette Score vs k')
+    plt.xlabel('k')
+    plt.ylabel('Silhouette Score')
+    plt.tight_layout()
+    plt.show()
+
+    return best_model, best_k, silhouettes
+
+# Agglomerative
+def grid_search_agglomerative(df_svd, svd_prefix='SVD_', k_range=range(4, 11)):
+    svd_cols = [col for col in df_svd.columns if col.startswith(svd_prefix)]
+    X = StandardScaler().fit_transform(df_svd[svd_cols].values)
+
+    inertias, silhouettes = [], []
+
+    for k in k_range:
+        agg = AgglomerativeClustering(n_clusters=k)
+        labels = agg.fit_predict(X)
+        score = silhouette_score(X, labels) if len(set(labels)) > 1 else -1
+        silhouettes.append(score)
+
+        # Create Inertia: sum of squared distances to each cluster mean
+        inertia = 0
+        for cluster_id in np.unique(labels):
+            cluster_points = X[labels == cluster_id]
+            centroid = cluster_points.mean(axis=0)
+            inertia += ((cluster_points - centroid) ** 2).sum()
+        inertias.append(inertia)
+
+    best_k = k_range[silhouettes.index(max(silhouettes))]
+    best_model = AgglomerativeClustering(n_clusters=best_k).fit(X)
+
+    # Plot
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(k_range, inertias, marker='o')
+    plt.title('Agg: Inertia vs k')
+    plt.xlabel('k')
+    plt.ylabel('Inertia')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(k_range, silhouettes, marker='o')
+    plt.title('Agg: Silhouette Score vs k')
+    plt.xlabel('k')
+    plt.ylabel('Silhouette Score')
+    plt.tight_layout()
+    plt.show()
+
+    return best_model, best_k, silhouettes
+
+
+def annotate_age_group_files(folder_path, cluster_map_kmeans, cluster_map_gmm, cluster_map_agg):
+    age_group_data = {}
+
+    for file in sorted(os.listdir(folder_path)):
+        if not file.endswith(".csv"):
+            continue
+
+        # Extract age from filename
+        age = int(file.split("_")[-1].replace(".csv", ""))
+        file_path = os.path.join(folder_path, file)
+
+        # Read age group data
+        df = pd.read_csv(file_path)
+        df = df.merge(cluster_map_kmeans, on='patient_id', how='left')
+        df = df.merge(cluster_map_gmm, on='patient_id', how='left')
+        df = df.merge(cluster_map_agg, on='patient_id', how='left')
+        age_group_data[age] = df
+        
+    return age_group_data
