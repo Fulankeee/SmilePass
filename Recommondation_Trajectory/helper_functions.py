@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import re
+import os
 
 # Helper function from Ruiwu's script for data preprocessing, slicing and aggragating.
 def drop_high_nan_columns(df: pd.DataFrame) -> pd.DataFrame:
