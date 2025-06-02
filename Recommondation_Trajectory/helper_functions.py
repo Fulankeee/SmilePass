@@ -3,6 +3,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import re
 import os
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from kneed import KneeLocator
+from collections import defaultdict
 
 # Helper function from Ruiwu's script for data preprocessing, slicing and aggragating.
 def drop_high_nan_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -298,188 +303,176 @@ def classify_patient(group):
     else:
         return 'V4'  # Inconsistent and short history (everything else)
     
-def cluster_patients_kmeans(df_svd, n_clusters=6):
-    # Select only the SVD columns
-    svd_cols = [col for col in df_svd.columns if col.startswith("SVD_")]
-    X = df_svd[svd_cols]
 
-    # Standardize the data
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+def classify_patient(group):
+    procedure_dates = group.sort_values('procedure_date')['procedure_date']
 
-    # Apply KMeans clustering
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    cluster_labels = kmeans.fit_predict(X_scaled)
+    # Calculate total treatment span in years
+    span_years = (group['last_visit'].iloc[0] - group['first_visit'].iloc[0]).days / 365.0
 
-    # Add cluster labels to the DataFrame
-    df_svd['Kmeans_cluster'] = cluster_labels
+    # Calculate max gap between consecutive visits in years
+    gaps = procedure_dates.diff().dropna().dt.days / 365.0
+    max_gap = gaps.max() if not gaps.empty else 0
 
-    return df_svd, kmeans, scaler
+    # Classification rules
+    if max_gap <= 2:
+        if span_years >= 3:
+            return 'V1'  # Consistent long history
+        else:
+            return 'V2'  # Consistent short history
+    elif max_gap > 2 and span_years >= 7:
+        return 'V3'  # Inconsistent but long history
+    else:
+        return 'V4'  # Inconsistent and short history (everything else)
+    
+# 5 year window
+def age_to_group_5_year(age):
+    try:
+        age = int(age)
+        if age < 0:
+            return "invalid"
+        lower = (age // 5) * 5
+        upper = lower + 5
+        if lower > upper:
+            return "invalid"
+        return f"{lower}-{upper}"
+    except:
+        return "invalid"
 
+# Kmeans, Optimal K and PCA plots   
+def kmeans_clustering(df_combined, scale=False):
+    df_cluster_input = df_combined.copy()
+    # extract feature matrix X
+    X = df_cluster_input.drop(columns=['patient_id'])
 
-# AgglomerativeClustering
-def cluster_patients_agglomerative(df_svd, n_clusters=6):
-    svd_cols = [col for col in df_svd.columns if col.startswith("SVD_")]
-    X = df_svd[svd_cols]
+    # scaling
+    if scale:
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+    else:
+        X_scaled = X.values
 
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    agglo = AgglomerativeClustering(n_clusters=n_clusters)
-
-    df_svd['Agg_cluster'] = agglo.fit_predict(X_scaled)
-
-    return df_svd, agglo, scaler
-
-# GMM
-def cluster_patients_gmm(df_svd, n_clusters=6):
-    svd_cols = [col for col in df_svd.columns if col.startswith("SVD_")]
-    X = df_svd[svd_cols]
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    gmm = GaussianMixture(n_components=n_clusters, random_state=42)
-    df_svd['gmm_cluster'] = gmm.fit_predict(X_scaled)
-
-    return df_svd, gmm, scaler
-
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans, AgglomerativeClustering
-from sklearn.mixture import GaussianMixture
-from sklearn.metrics import silhouette_score
-from sklearn.preprocessing import StandardScaler
-
-# KMeans
-def grid_search_kmeans(df_svd, svd_prefix='SVD_', k_range=range(4, 11)):
-    svd_cols = [col for col in df_svd.columns if col.startswith(svd_prefix)]
-    X = StandardScaler().fit_transform(df_svd[svd_cols].values)
-
-    inertias, silhouettes = [], []
-
-    for k in k_range:
+    # Elbow method to determine optimal K
+    inertia = []
+    ks = list(range(2, 6))
+    for k in range(2, 6):
         kmeans = KMeans(n_clusters=k, random_state=42)
-        labels = kmeans.fit_predict(X)
-        inertias.append(kmeans.inertia_)
-        silhouettes.append(silhouette_score(X, labels))
-
-    best_k = k_range[silhouettes.index(max(silhouettes))]
-    best_model = KMeans(n_clusters=best_k, random_state=42).fit(X)
-
-    # Plot
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(k_range, inertias, marker='o')
-    plt.title('KMeans: Inertia vs k')
-    plt.xlabel('k')
-    plt.ylabel('Inertia')
-
-    plt.subplot(1, 2, 2)
-    plt.plot(k_range, silhouettes, marker='o')
-    plt.title('KMeans: Silhouette Score vs k')
-    plt.xlabel('k')
-    plt.ylabel('Silhouette Score')
+        kmeans.fit(X_scaled)
+        inertia.append(kmeans.inertia_)
+    # Use KneeLocator to find the elbow
+    kl = KneeLocator(ks, inertia, curve="convex", direction="decreasing")
+    optimal_k = kl.elbow
+    print(optimal_k)
+    
+    # elbow curve
+    plt.figure(figsize=(8, 6))
+    plt.plot(range(2, 6), inertia, marker='o')
+    plt.title("Elbow Method for Optimal K")
+    plt.xlabel("Number of Clusters")
+    plt.ylabel("Inertia")
+    plt.grid(True)
     plt.tight_layout()
     plt.show()
 
-    return best_model, best_k, silhouettes
+    kmeans = KMeans(n_clusters=optimal_k, random_state=823)
+    df_cluster_input['cluster'] = kmeans.fit_predict(X_scaled)
 
-# GMM
-def grid_search_gmm(df_svd, svd_prefix='SVD_', k_range=range(4, 11)):
-    svd_cols = [col for col in df_svd.columns if col.startswith(svd_prefix)]
-    X = StandardScaler().fit_transform(df_svd[svd_cols].values)
-
-    inertias, silhouettes = [], []
-
-    for k in k_range:
-        gmm = GaussianMixture(n_components=k, covariance_type='full', random_state=42)
-        labels = gmm.fit_predict(X)
-        score = silhouette_score(X, labels) if len(set(labels)) > 1 else -1
-        silhouettes.append(score)
-        
-        # Pseudo-inertia (negative log-likelihood * n_samples)
-        inertia_like = -gmm.score(X) * len(X)
-        inertias.append(inertia_like)
-
-    best_k = k_range[silhouettes.index(max(silhouettes))]
-    best_model = GaussianMixture(n_components=best_k, covariance_type='full', random_state=42).fit(X)
-
-    # Plot
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(k_range, inertias, marker='o')
-    plt.title('GMM: Inertia vs k')
-    plt.xlabel('k')
-    plt.ylabel('Inertia')
-
-    plt.subplot(1, 2, 2)
-    plt.plot(k_range, silhouettes, marker='o')
-    plt.title('GMM: Silhouette Score vs k')
-    plt.xlabel('k')
-    plt.ylabel('Silhouette Score')
+    # PCA for visualization
+    pca = PCA(n_components=2)
+    X_vis = pca.fit_transform(X_scaled)
+    plt.figure(figsize=(8, 6))
+    plt.scatter(X_vis[:, 0], X_vis[:, 1], c=df_cluster_input['cluster'], cmap='viridis', s=30)
+    plt.title("Patient Clusters PCA")
+    plt.xlabel("PCA Component 1")
+    plt.ylabel("PCA Component 2")
+    plt.grid(True)
     plt.tight_layout()
     plt.show()
 
-    return best_model, best_k, silhouettes
+    return df_cluster_input
 
-# Agglomerative
-def grid_search_agglomerative(df_svd, svd_prefix='SVD_', k_range=range(4, 11)):
-    svd_cols = [col for col in df_svd.columns if col.startswith(svd_prefix)]
-    X = StandardScaler().fit_transform(df_svd[svd_cols].values)
+def plot_procedure_distribution(df_proc_timelines, target_code, average=False, age_range=(30, 101)):
+    full_age_range = pd.Series(index=range(*age_range), dtype=int)
+    for cluster_id, df_proc in df_proc_timelines.items():
+        df_code = df_proc[df_proc['procedure_code'] == target_code].copy()
+        df_code['age'] = df_code['age'].astype(int)
 
-    inertias, silhouettes = [], []
+        if not average:
+            # Raw total counts per age
+            age_distribution = df_code['age'].value_counts().sort_index()
+            age_distribution = full_age_range.add(age_distribution, fill_value=0).fillna(0).astype(int)
 
-    for k in k_range:
-        agg = AgglomerativeClustering(n_clusters=k)
-        labels = agg.fit_predict(X)
-        score = silhouette_score(X, labels) if len(set(labels)) > 1 else -1
-        silhouettes.append(score)
+            plt.figure(figsize=(12, 5))
+            plt.bar(age_distribution.index, age_distribution.values)
+            plt.title(f"Total Occurrences of Procedure {target_code} (Age {age_range[0]}–{age_range[1]-1}) - Cluster {cluster_id}")
+            plt.xlabel("Age")
+            plt.ylabel("Number of Occurrences")
+            plt.grid(True)
+            plt.xticks(range(age_range[0], age_range[1], 5))
+            plt.tight_layout()
+            plt.show()
 
-        # Create Inertia: sum of squared distances to each cluster mean
-        inertia = 0
-        for cluster_id in np.unique(labels):
-            cluster_points = X[labels == cluster_id]
-            centroid = cluster_points.mean(axis=0)
-            inertia += ((cluster_points - centroid) ** 2).sum()
-        inertias.append(inertia)
+        else:
+            bins = list(range(30, 105, 5))
+            labels = [f"{b}-{b+5}" for b in bins[:-1]]
+            df_code['age_bin'] = pd.cut(df_code['age'], bins=bins, right=False, labels=labels)
 
-    best_k = k_range[silhouettes.index(max(silhouettes))]
-    best_model = AgglomerativeClustering(n_clusters=best_k).fit(X)
+            # Group by patient and age, count occurrences
+            occurrence_per_age = df_code.groupby(['patient_id', 'age']).size().reset_index(name='count')
 
-    # Plot
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(k_range, inertias, marker='o')
-    plt.title('Agg: Inertia vs k')
-    plt.xlabel('k')
-    plt.ylabel('Inertia')
+            # Assign age bin to each row
+            occurrence_per_age['age_bin'] = pd.cut(occurrence_per_age['age'], bins=bins, right=False, labels=labels)
 
-    plt.subplot(1, 2, 2)
-    plt.plot(k_range, silhouettes, marker='o')
-    plt.title('Agg: Silhouette Score vs k')
-    plt.xlabel('k')
-    plt.ylabel('Silhouette Score')
-    plt.tight_layout()
-    plt.show()
+            # compute the mean over patients per bin
+            mean_per_bin = occurrence_per_age.groupby('age_bin')['count'].mean()
 
-    return best_model, best_k, silhouettes
+            plt.figure(figsize=(10, 5))
+            plt.bar(mean_per_bin.index.astype(str), mean_per_bin.values)
+            plt.title(f"Mean Occurrence per Patient for Procedure {target_code} (Age {age_range[0]}–{age_range[1]-1}) - Cluster {cluster_id}")
+            plt.xlabel("Age bin")
+            plt.ylabel("Mean Occurrence per Patient")
+            plt.tight_layout()
+            plt.show()
 
+# Define filter to exclude basic treatments
+def is_non_basic(code):
+    return not (code.startswith('1') or len(code) == 4)
 
-def annotate_age_group_files(folder_path, cluster_map_kmeans, cluster_map_gmm, cluster_map_agg):
-    age_group_data = {}
+# Mapping codes and their description
+def get_procedure_description(input_code, Procedure_code_description_path):
+    """
+    Given an Excel file path, sheet name, and a string like 'procedure_code_###',
+    returns the description of the corresponding procedure code.
+    """
+    df = pd.read_excel(Procedure_code_description_path, sheet_name="Mapping Table")
+    code_number = input_code.replace("procedure_code_y_", "")
+    result = df.loc[df['CODE'].astype(str) == code_number, 'DESCRIPTION']
+    if not result.empty:
+        return result.values[0]
+    else:
+        return f"No description found for code: {input_code}"
 
-    for file in sorted(os.listdir(folder_path)):
-        if not file.endswith(".csv"):
-            continue
+    
+def get_top_procedures_by_cluster(cluster_id, df_proc_timelines, description_mapping_path, non_basic=True, top_n=15):
+    # Extract the cluster-specific timeline
+    df_proc = df_proc_timelines[cluster_id]
 
-        # Extract age from filename
-        age = int(file.split("_")[-1].replace(".csv", ""))
-        file_path = os.path.join(folder_path, file)
+    # Count procedure occurrences
+    code_counts = df_proc['procedure_code'].value_counts()
 
-        # Read age group data
-        df = pd.read_csv(file_path)
-        df = df.merge(cluster_map_kmeans, on='patient_id', how='left')
-        df = df.merge(cluster_map_gmm, on='patient_id', how='left')
-        df = df.merge(cluster_map_agg, on='patient_id', how='left')
-        age_group_data[age] = df
-        
-    return age_group_data
+    # Filter codes
+    if non_basic:
+        filtered_counts = code_counts[~code_counts.index.map(is_non_basic)]
+    else:
+        filtered_counts = code_counts[code_counts.index.map(is_non_basic)]
+    # Take top N
+    filtered_counts = filtered_counts.head(top_n)
+
+    # Format to DataFrame
+    top_codes_df = filtered_counts.reset_index()
+    top_codes_df.columns = ['procedure_code', 'count']
+
+    # Add description
+    top_codes_df['description'] = top_codes_df['procedure_code'].apply(lambda code: get_procedure_description(f'procedure_code_y_{code}', description_mapping_path))
+
+    return top_codes_df
