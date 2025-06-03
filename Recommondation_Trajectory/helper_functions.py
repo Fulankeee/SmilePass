@@ -362,8 +362,7 @@ def kmeans_clustering(df_combined, lower, upper, scale=False):
     # Use KneeLocator to find the elbow
     kl = KneeLocator(ks, inertia, curve="convex", direction="decreasing")
     optimal_k = kl.elbow
-    print('The optimal K being select is')
-    print(optimal_k)
+    print(f'The optimal K being select is {optimal_k}')
     
     # elbow curve
     plt.figure(figsize=(8, 6))
