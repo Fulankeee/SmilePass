@@ -340,7 +340,7 @@ def age_to_group_5_year(age):
         return "invalid"
 
 # Kmeans, Optimal K and PCA plots   
-def kmeans_clustering(df_combined, scale=False, lower = lower_boundary, upper = upper_boundary):
+def kmeans_clustering(df_combined, lower, upper, scale=False):
     df_cluster_input = df_combined.copy()
     # extract feature matrix X
     X = df_cluster_input.drop(columns=['patient_id'])
