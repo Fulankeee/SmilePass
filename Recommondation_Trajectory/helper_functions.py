@@ -340,13 +340,12 @@ def age_to_group_5_year(age):
         return "invalid"
 
 # Kmeans, Optimal K and PCA plots 
-optimal_k_global  = None
-def kmeans_clustering(df_combined, lower, upper, scale=False):
+optimal_k_global = None
+def kmeans_clustering(df_combined, lower, upper, scale=False, silent=False):
     df_cluster_input = df_combined.copy()
-    # extract feature matrix X
     X = df_cluster_input.drop(columns=['patient_id'])
 
-    # scaling
+    # Scaling
     if scale:
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
@@ -356,42 +355,46 @@ def kmeans_clustering(df_combined, lower, upper, scale=False):
     # Elbow method to determine optimal K
     inertia = []
     ks = list(range(2, 8))
-    for k in range(2, 8):
+    for k in ks:
         kmeans = KMeans(n_clusters=k, random_state=42)
         kmeans.fit(X_scaled)
         inertia.append(kmeans.inertia_)
-    # Use KneeLocator to find the elbow
+
     kl = KneeLocator(ks, inertia, curve="convex", direction="decreasing")
     optimal_k = kl.elbow
-    optimal_k_global = optimal_k  # store it globally
-    print(f'The optimal K being select is {optimal_k}')
-    
-    # elbow curve
-    plt.figure(figsize=(8, 6))
-    plt.plot(range(2, 8), inertia, marker='o')
-    plt.title("Elbow Method for Optimal K")
-    plt.xlabel("Number of Clusters")
-    plt.ylabel("Inertia")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+    optimal_k_global = optimal_k
+
+    if not silent:
+        print(f'The optimal K being select is {optimal_k}')
+
+        # Elbow curve
+        plt.figure(figsize=(8, 6))
+        plt.plot(ks, inertia, marker='o')
+        plt.title("Elbow Method for Optimal K")
+        plt.xlabel("Number of Clusters")
+        plt.ylabel("Inertia")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
 
     kmeans = KMeans(n_clusters=optimal_k, random_state=823)
     df_cluster_input['cluster'] = kmeans.fit_predict(X_scaled)
 
     # PCA for visualization
-    pca = PCA(n_components=2)
-    X_vis = pca.fit_transform(X_scaled)
-    plt.figure(figsize=(8, 6))
-    plt.scatter(X_vis[:, 0], X_vis[:, 1], c=df_cluster_input['cluster'], cmap='viridis', s=30)
-    plt.title(f"Patient Clusters (PCA view of age {lower}-{upper} + history)")
-    plt.xlabel("PCA Component 1")
-    plt.ylabel("PCA Component 2")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+    if not silent:
+        pca = PCA(n_components=2)
+        X_vis = pca.fit_transform(X_scaled)
+        plt.figure(figsize=(8, 6))
+        plt.scatter(X_vis[:, 0], X_vis[:, 1], c=df_cluster_input['cluster'], cmap='viridis', s=30)
+        plt.title(f"Patient Clusters (PCA view of age {lower}-{upper} + history)")
+        plt.xlabel("PCA Component 1")
+        plt.ylabel("PCA Component 2")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
 
     return df_cluster_input
+
 
 def plot_procedure_distribution(df_proc_timelines, target_code, average=False, age_range=(30, 101)):
     full_age_range = pd.Series(index=range(*age_range), dtype=int)
