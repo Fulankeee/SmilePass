@@ -339,7 +339,8 @@ def age_to_group_5_year(age):
     except:
         return "invalid"
 
-# Kmeans, Optimal K and PCA plots   
+# Kmeans, Optimal K and PCA plots 
+optimal_k_global  = None
 def kmeans_clustering(df_combined, lower, upper, scale=False):
     df_cluster_input = df_combined.copy()
     # extract feature matrix X
@@ -362,6 +363,7 @@ def kmeans_clustering(df_combined, lower, upper, scale=False):
     # Use KneeLocator to find the elbow
     kl = KneeLocator(ks, inertia, curve="convex", direction="decreasing")
     optimal_k = kl.elbow
+    optimal_k_global = optimal_k  # store it globally
     print(f'The optimal K being select is {optimal_k}')
     
     # elbow curve
@@ -453,7 +455,7 @@ def get_procedure_description(input_code, Procedure_code_description_path):
         return f"No description found for code: {input_code}"
 
 
-def get_top_procedures_by_cluster(cluster_id, df_proc_timelines, description_mapping_path, non_basic=True, top_n=15):
+def get_top_procedures_by_cluster(cluster_id, df_proc_timelines, description_mapping_path, non_basic=True, top_n=10):
     # Extract the cluster-specific timeline
     df_proc = df_proc_timelines[cluster_id]
 
