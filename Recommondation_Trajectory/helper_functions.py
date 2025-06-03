@@ -361,7 +361,7 @@ def kmeans_clustering(df_combined, lower, upper, scale=False, silent=False):
 
     kl = KneeLocator(ks, inertia, curve="convex", direction="decreasing")
     optimal_k = kl.elbow
-    
+
     if not silent:
         print(f'The optimal K being select is {optimal_k}')
 
@@ -391,7 +391,7 @@ def kmeans_clustering(df_combined, lower, upper, scale=False, silent=False):
         plt.tight_layout()
         plt.show()
 
-    return df_cluster_input
+    return df_cluster_input, optimal_k
 
 
 def plot_procedure_distribution(df_proc_timelines, target_code, average=False, age_range=(30, 101)):
