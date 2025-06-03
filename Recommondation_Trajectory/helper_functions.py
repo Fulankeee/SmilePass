@@ -340,7 +340,7 @@ def age_to_group_5_year(age):
         return "invalid"
 
 # Kmeans, Optimal K and PCA plots   
-def kmeans_clustering(df_combined, scale=False):
+def kmeans_clustering(df_combined, scale=False, lower = lower_boundary, upper = upper_boundary):
     df_cluster_input = df_combined.copy()
     # extract feature matrix X
     X = df_cluster_input.drop(columns=['patient_id'])
@@ -354,19 +354,20 @@ def kmeans_clustering(df_combined, scale=False):
 
     # Elbow method to determine optimal K
     inertia = []
-    ks = list(range(2, 6))
-    for k in range(2, 6):
+    ks = list(range(2, 8))
+    for k in range(2, 8):
         kmeans = KMeans(n_clusters=k, random_state=42)
         kmeans.fit(X_scaled)
         inertia.append(kmeans.inertia_)
     # Use KneeLocator to find the elbow
     kl = KneeLocator(ks, inertia, curve="convex", direction="decreasing")
     optimal_k = kl.elbow
+    print('The optimal K being select is')
     print(optimal_k)
     
     # elbow curve
     plt.figure(figsize=(8, 6))
-    plt.plot(range(2, 6), inertia, marker='o')
+    plt.plot(range(2, 8), inertia, marker='o')
     plt.title("Elbow Method for Optimal K")
     plt.xlabel("Number of Clusters")
     plt.ylabel("Inertia")
@@ -382,7 +383,7 @@ def kmeans_clustering(df_combined, scale=False):
     X_vis = pca.fit_transform(X_scaled)
     plt.figure(figsize=(8, 6))
     plt.scatter(X_vis[:, 0], X_vis[:, 1], c=df_cluster_input['cluster'], cmap='viridis', s=30)
-    plt.title("Patient Clusters PCA")
+    plt.title(f"Patient Clusters (PCA view of age {lower}-{upper} + history)")
     plt.xlabel("PCA Component 1")
     plt.ylabel("PCA Component 2")
     plt.grid(True)
@@ -452,7 +453,7 @@ def get_procedure_description(input_code, Procedure_code_description_path):
     else:
         return f"No description found for code: {input_code}"
 
-    
+
 def get_top_procedures_by_cluster(cluster_id, df_proc_timelines, description_mapping_path, non_basic=True, top_n=15):
     # Extract the cluster-specific timeline
     df_proc = df_proc_timelines[cluster_id]
