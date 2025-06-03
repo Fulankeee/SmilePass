@@ -340,7 +340,6 @@ def age_to_group_5_year(age):
         return "invalid"
 
 # Kmeans, Optimal K and PCA plots 
-optimal_k_global = None
 def kmeans_clustering(df_combined, lower, upper, scale=False, silent=False):
     df_cluster_input = df_combined.copy()
     X = df_cluster_input.drop(columns=['patient_id'])
@@ -362,8 +361,7 @@ def kmeans_clustering(df_combined, lower, upper, scale=False, silent=False):
 
     kl = KneeLocator(ks, inertia, curve="convex", direction="decreasing")
     optimal_k = kl.elbow
-    optimal_k_global = optimal_k
-
+    
     if not silent:
         print(f'The optimal K being select is {optimal_k}')
 
