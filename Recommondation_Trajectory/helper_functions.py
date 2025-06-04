@@ -444,30 +444,56 @@ def is_non_basic(code):
 # Mapping codes and their description
 def get_procedure_description(input_code, Procedure_code_description_path):
     """
-    Given an Excel file path, sheet name, and a string like 'procedure_code_###',
-    returns the description of the corresponding procedure code.
+    Given an Excel file path and a string like 'procedure_code_y_###',
+    returns a dictionary with description, price, and category of service
+    for the corresponding procedure code.
     """
+    import pandas as pd
+
+    # Load mapping table
     df = pd.read_excel(Procedure_code_description_path, sheet_name="Mapping Table")
     code_number = input_code.replace("procedure_code_y_", "")
-    result = df.loc[df['CODE'].astype(str) == code_number, 'DESCRIPTION']
-    if not result.empty:
-        return result.values[0]
+
+    # Find matching row
+    match = df[df['CODE'].astype(str) == code_number]
+
+    if not match.empty:
+        description = match['DESCRIPTION'].values[0]
+        price = match['PRICE'].values[0]
+        category = match['CATEGORY OF SERVICE'].values[0]
+
+        return {
+            "DESCRIPTION": description,
+            "PRICE": price,
+            "CATEGORY OF SERVICE": category
+        }
     else:
-        return f"No description found for code: {input_code}"
+        return {
+            "DESCRIPTION": f"No description found for code: {input_code}",
+            "PRICE": None,
+            "CATEGORY OF SERVICE": None
+        }
+
 
 
 def get_top_procedures_by_cluster(cluster_id, df_proc_timelines, description_mapping_path, non_basic=True, top_n=10):
+    """
+    Extract top N procedures for a given cluster ID.
+    Filters by non-basic or basic procedures.
+    Returns a DataFrame with procedure code, count, description, price, and category.
+    """
     # Extract the cluster-specific timeline
     df_proc = df_proc_timelines[cluster_id]
 
     # Count procedure occurrences
     code_counts = df_proc['procedure_code'].value_counts()
 
-    # Filter codes
+    # Filter by non-basic or basic
     if non_basic:
-        filtered_counts = code_counts[~code_counts.index.map(is_non_basic)]
-    else:
         filtered_counts = code_counts[code_counts.index.map(is_non_basic)]
+    else:
+        filtered_counts = code_counts[~code_counts.index.map(is_non_basic)]
+
     # Take top N
     filtered_counts = filtered_counts.head(top_n)
 
@@ -475,7 +501,14 @@ def get_top_procedures_by_cluster(cluster_id, df_proc_timelines, description_map
     top_codes_df = filtered_counts.reset_index()
     top_codes_df.columns = ['procedure_code', 'count']
 
-    # Add description
-    top_codes_df['description'] = top_codes_df['procedure_code'].apply(lambda code: get_procedure_description(f'procedure_code_y_{code}', description_mapping_path))
+    # Map descriptions, prices, and categories
+    def extract_info(code):
+        info = get_procedure_description(f'procedure_code_y_{code}', description_mapping_path)
+        if isinstance(info, dict):
+            return pd.Series([info.get('PRICE'), info.get('CATEGORY OF SERVICE'), info.get('DESCRIPTION'),])
+        else:
+            return pd.Series([info, None, None])
+
+    top_codes_df[['price', 'category', 'description']] = top_codes_df['procedure_code'].apply(extract_info)
 
     return top_codes_df
