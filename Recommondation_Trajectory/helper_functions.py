@@ -63,29 +63,6 @@ def object_decoding(df, decode_dict):
         reverse_mapping = {v: k for k, v in mapping.items()}
         df[col] = df[col].map(reverse_mapping)
     return df
-def days_cal(df, date_late, date_early, new_col_name):
-    """
-    Calculate how many days are there in the difference between column date_late and date_early.
-
-    Args:
-        df (pandas.DataFrame): Input DataFrame
-        date_late (str): The name of the column containing later dates
-        date_early (str): The name of the column containing earlier dates
-        new_col_name (str): New column containing the calculation result
-
-    Return:
-        pandas.DataFrame: New DataFrame after processing，including new_col_name，but excluding date_late and date_early.
-    """
-    # Make sure that date_late and date_early are in datetime format.
-    df[date_late] = pd.to_datetime(df[date_late])
-    df[date_early] = pd.to_datetime(df[date_early])
-    
-    # Calculate how many days are there in the difference between column date_late and date_early.
-    df[new_col_name] = ((df[date_late] - df[date_early]).dt.days)*1.00/365.00
-    
-    # Delete original columns.
-    df = df.drop(columns=[date_late, date_early])
-    return df
 
 def days_cal_v2(df, date_late, date_early, new_col_name):
     """
@@ -281,28 +258,6 @@ def merge_columns_with_priority(df: pd.DataFrame, col1: str, col2: str, defined_
 
     return df
 
-
-def classify_patient(group):
-    procedure_dates = group.sort_values('procedure_date')['procedure_date']
-
-    # Calculate total treatment span in years
-    span_years = (group['last_visit'].iloc[0] - group['first_visit'].iloc[0]).days / 365.0
-
-    # Calculate max gap between consecutive visits in years
-    gaps = procedure_dates.diff().dropna().dt.days / 365.0
-    max_gap = gaps.max() if not gaps.empty else 0
-
-    # Classification rules
-    if max_gap <= 2:
-        if span_years >= 3:
-            return 'V1'  # Consistent long history
-        else:
-            return 'V2'  # Consistent short history
-    elif max_gap > 2 and span_years >= 7:
-        return 'V3'  # Inconsistent but long history
-    else:
-        return 'V4'  # Inconsistent and short history (everything else)
-    
 
 def classify_patient(group):
     procedure_dates = group.sort_values('procedure_date')['procedure_date']
