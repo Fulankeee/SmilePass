@@ -349,48 +349,50 @@ def kmeans_clustering(df_combined, lower, upper, scale=False, silent=False):
     return df_cluster_input, optimal_k
 
 
-def plot_procedure_distribution(df_proc_timelines, target_code, average=False, age_range=(30, 101)):
-    full_age_range = pd.Series(index=range(*age_range), dtype=int)
+def plot_procedure_distribution(df_proc_timelines, target_code, average=False, age_range=(0, 101), bin_size=5):
+    bins = list(range(age_range[0], age_range[1] + bin_size, bin_size))
+    labels = [f"{b}-{b+bin_size}" for b in bins[:-1]]
+
     for cluster_id, df_proc in df_proc_timelines.items():
+        df_proc = df_proc.copy()
+        df_proc['age'] = df_proc['age'].astype(int)
+
+        # Filter target procedure only
         df_code = df_proc[df_proc['procedure_code'] == target_code].copy()
-        df_code['age'] = df_code['age'].astype(int)
+        if df_code.empty:
+            print(f"No data for procedure {target_code} in Cluster {cluster_id}")
+            continue
 
-        if not average:
-            # Raw total counts per age
-            age_distribution = df_code['age'].value_counts().sort_index()
-            age_distribution = full_age_range.add(age_distribution, fill_value=0).fillna(0).astype(int)
+        # Assign age bins
+        df_code['age_bin'] = pd.cut(df_code['age'], bins=bins, right=False, labels=labels)
 
-            plt.figure(figsize=(12, 5))
-            plt.bar(age_distribution.index, age_distribution.values)
-            plt.title(f"Total Occurrences of Procedure {target_code} (Age {age_range[0]}–{age_range[1]-1}) - Cluster {cluster_id}")
-            plt.xlabel("Age")
-            plt.ylabel("Number of Occurrences")
-            plt.grid(True)
-            plt.xticks(range(age_range[0], age_range[1], 5))
-            plt.tight_layout()
-            plt.show()
+        # Group by individual age to get per-age counts
+        age_counts = df_code.groupby('age').size().reset_index(name='count')
+        age_counts['age_bin'] = pd.cut(age_counts['age'], bins=bins, right=False, labels=labels)
 
+        # Total occurrences per bin
+        total_occurrences = age_counts.groupby('age_bin')['count'].sum()
+
+        if average:
+            # Number of distinct ages with usage per bin (denominator)
+            active_years = age_counts.groupby('age_bin')['age'].nunique()
+            values = total_occurrences / active_years
+            ylabel = "Mean Occurrences per Active Age"
+            title = f"Avg Occurrences per Active Age for Procedure {target_code} (Cluster {cluster_id})"
         else:
-            bins = list(range(30, 105, 5))
-            labels = [f"{b}-{b+5}" for b in bins[:-1]]
-            df_code['age_bin'] = pd.cut(df_code['age'], bins=bins, right=False, labels=labels)
+            values = total_occurrences
+            ylabel = "Total Occurrences"
+            title = f"Total Occurrences of Procedure {target_code} per Age Bin - Cluster {cluster_id}"
 
-            # Group by patient and age, count occurrences
-            occurrence_per_age = df_code.groupby(['patient_id', 'age']).size().reset_index(name='count')
-
-            # Assign age bin to each row
-            occurrence_per_age['age_bin'] = pd.cut(occurrence_per_age['age'], bins=bins, right=False, labels=labels)
-
-            # compute the mean over patients per bin
-            mean_per_bin = occurrence_per_age.groupby('age_bin')['count'].mean()
-
-            plt.figure(figsize=(10, 5))
-            plt.bar(mean_per_bin.index.astype(str), mean_per_bin.values)
-            plt.title(f"Mean Occurrence per Patient for Procedure {target_code} (Age {age_range[0]}–{age_range[1]-1}) - Cluster {cluster_id}")
-            plt.xlabel("Age bin")
-            plt.ylabel("Mean Occurrence per Patient")
-            plt.tight_layout()
-            plt.show()
+        # Plot
+        plt.figure(figsize=(10, 5))
+        plt.bar(values.index.astype(str), values.values)
+        plt.title(title)
+        plt.xlabel("Age Bin")
+        plt.ylabel(ylabel)
+        plt.grid(True, axis='y')
+        plt.tight_layout()
+        plt.show()
 
 # Define filter to exclude basic treatments
 def is_non_basic(code):
