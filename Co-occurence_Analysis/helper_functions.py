@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import re
 import os
+import seaborn as sns
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -557,3 +558,37 @@ def encode_procedures(df, col_name):
         encoded_df.loc[idx] = [1 if code in codes else 0 for code in all_codes]
     
     return encoded_df
+
+
+def plot_lift_heatmap(pivot_table, 
+                      title='Lift Heatmap', 
+                      xlabel='Consequents', 
+                      ylabel='Antecedents', 
+                      figsize=(28, 18), 
+                      cmap="YlGnBu"):
+    """
+    Plots a formatted heatmap for a given lift pivot table.
+
+    """
+    plt.figure(figsize=figsize)
+    
+    sns.heatmap(
+        pivot_table,
+        annot=True,
+        fmt='.0f',
+        cmap=cmap,
+        cbar=True,
+        linewidths=0.5,
+        linecolor='lightgray',
+        square=True,
+        annot_kws={"size": 8}
+    )
+    
+    plt.title(title, fontsize=20, fontweight='bold', pad=20)
+    plt.xlabel(xlabel, fontsize=14, labelpad=15)
+    plt.ylabel(ylabel, fontsize=14, labelpad=15)
+    
+    plt.xticks(rotation=90, fontsize=8)
+    plt.yticks(fontsize=8)
+    plt.tight_layout()
+    plt.show()
