@@ -532,7 +532,6 @@ def generate_sliding_windows(df, window_months=6, step_months=3, sequential = Fa
                         'next_procedure_codes': sorted([str(code) for code in window_data_next[code_col].tolist()])
                     })
 
-
                 start_date += DateOffset(months=step_months)
 
     return pd.DataFrame(results)
