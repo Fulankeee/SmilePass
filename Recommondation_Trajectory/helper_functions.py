@@ -349,7 +349,7 @@ def kmeans_clustering(df_combined, lower, upper, scale=False, silent=False):
     return df_cluster_input, optimal_k
 
 
-def plot_procedure_distribution(df_proc_timelines, target_code, average=False, age_range=(0, 101), bin_size=5):
+def plot_procedure_distribution(df_proc_timelines, target_code, average=True, age_range=(0, 101), bin_size=5):
     bins = list(range(age_range[0], age_range[1] + bin_size, bin_size))
     labels = [f"{b}-{b+bin_size}" for b in bins[:-1]]
 
