@@ -1,7 +1,7 @@
 # Dentistry Patient Action Analysis - SmilePass
 
 ## Abstract
-This project was initiated from raw data provided by SmilePass and aims to generate innovative insights from limited resources. As a registered research assistant in the MIE program at the University of Toronto, I provided weekly progress updates and reports. The project is supervised by Professor Chi-Guhn Lee and Dr. Dhavalkumar Patel. I collaborated with Ruiwu Liu and Prithvi Seran, who also contributed significantly to this research — my sincere thanks to them for their efforts.  
+This project was initiated from raw data provided by SmilePass and aims to generate innovative insights from limited resources. As a registered research assistant in the MIE program at the University of Toronto, I provided weekly progress updates and reports. The project is supervised by Professor Chi-Guhn Lee and Dhavalkumar Patel. I collaborated with Ruiwu Liu and Prithvi Seran, who also contributed significantly to this research — my sincere thanks to them for their efforts.  
 
 The project now encompasses several research directions aligned with dentists' clinical interests and requirements. My main contributions are in three key areas: **Co-occurrence Analysis**, **Risk Level Modelling**, and **Recommendation System Development**.
 
